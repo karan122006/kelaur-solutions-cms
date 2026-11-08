@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b2f5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<title>Sunrise Family Clinics · Clinic Management System</title>
+<meta name="description" content="Clinic Management System for Sunrise Family Clinics, designed by Keluar Solutions">
+<link rel="icon" href="/static/img/favicon.png">
+<link rel="apple-touch-icon" href="/static/img/mark.png">
+<link rel="preload" href="/static/img/hero.jpg" as="image">
+<link rel="stylesheet" href="/static/css/app.css?v=__V__">
+<script src="/static/js/app.js?v=__V__"></script>
+<script defer src="/static/vendor/alpine.min.js?v=3175"></script>
+</head>
+<body x-data="cms()" x-init="init()" :lang="lang" data-demo="__DEMO__" :class="navOpen && 'nav-open'">
+
+<!-- ======================= LOGIN (9.0 authentication) ======================= -->
+<section class="login" x-show="!user" x-cloak>
+  <div class="login-photo" role="img" aria-label="Doctor at a Sunrise Family Clinics consulting room">
+    <div class="cap">
+      <span class="motto">Connect. Simplify. Care.</span>
+      <h1>One clinic system for all five Sunrise Family Clinics</h1>
+      <p>Patient records, appointments, pharmacy stock, billing and claims, shared across Petaling Jaya, Shah Alam and Subang Jaya.</p>
+    </div>
+  </div>
+  <div class="login-form">
+    <img class="logo" src="/static/img/logo.png" alt="Keluar Solutions: Smart Systems. Better Care.">
+    <h2>Staff sign in</h2>
+    <p class="muted small" style="margin:4px 0 20px">Sunrise Family Clinics · Clinic Management System</p>
+    <form @submit.prevent="doLogin()" class="stack" autocomplete="on">
+      <label class="f"><span>Username</span><input class="in-t" x-model="login.username" autocomplete="username" required autofocus></label>
+      <label class="f"><span>Password</span><input class="in-t" type="password" x-model="login.password" autocomplete="current-password" required></label>
+      <div class="note bad" x-show="login.error" x-text="login.error" role="alert"></div>
+      <button class="btn lg" :disabled="busy"><span x-show="busy" class="spinner"></span><span x-text="t('signin')"></span></button>
+      <div class="row between small">
+        <span class="muted">Sessions end after 5 minutes of inactivity.</span>
+        <span class="seg"><button type="button" :class="lang==='en'&&'on'" @click="setLang('en')">EN</button><button type="button" :class="lang==='ms'&&'on'" @click="setLang('ms')">BM</button></span>
+      </div>
+    </form>
+    <div class="demo" x-show="demoMode">
+      <h4>Prototype demo accounts</h4>
+      <p class="muted tiny" style="margin:2px 0 0">Every account uses password <b>Sfc@2026</b>. Each role only sees the screens it needs.</p>
+      <div class="demo-list">
+        <template x-for="d in DEMO" :key="d[0]"><button type="button" @click="quick(d[0])"><b x-text="d[1]"></b><span class="muted" x-text="d[0]"></span></button></template>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= APP SHELL ======================= -->
+<div class="shell" x-show="user" x-cloak>
+  <div class="scrim" x-show="navOpen" x-transition.opacity @click="navOpen=false"></div>
+  <aside class="side" :class="navOpen && 'open'" @keydown.escape.window="navOpen=false" aria-label="Main menu">
+    <div class="brand"><img src="/static/img/mark.png" alt=""><div><b>Sunrise Family Clinics</b><span>CMS by Keluar Solutions</span></div></div>
+    <nav class="nav" aria-label="Main">
+      <a href="#home" :class="page==='home'&&'on'"><span x-text="t('home')"></span></a>
+      <template x-for="g in ['g_front','g_clinic','g_mgmt','g_sys']" :key="g">
+        <div x-show="navPages(g).length">
+          <div class="grp" x-text="t(g)"></div>
+          <template x-for="p in navPages(g)" :key="p.id">
+            <a :href="'#'+p.id" :class="page===p.id&&'on'"><span x-text="t(p.id)"></span>
+              <small x-show="p.id!=='messages'||!unread" x-text="p.p"></small><span class="badge" x-show="p.id==='messages'&&unread" x-text="unread"></span></a>
+          </template>
+        </div>
+      </template>
+    </nav>
+    <div class="who"><b x-text="user?.full_name"></b><span x-text="ROLE_NAME[user?.role]"></span> · <span x-text="user?.branch_id"></span>
+      <div class="who-actions"><button class="linkbtn light" @click="pw={current:'',new:'',confirm:'',forced:false,err:''}">Change password</button>
+        <span class="side-only"><span class="seg dark"><button :class="lang==='en'&&'on'" @click="setLang('en')">EN</button><button :class="lang==='ms'&&'on'" @click="setLang('ms')">BM</button></span>
+        <button class="linkbtn light" @click="logout()" x-text="t('signout')"></button></span></div></div>
+  </aside>
+
+  <div>
+    <header class="top">
+      <button class="menu-btn" @click="navOpen=true" aria-label="Open menu"><span></span><span></span><span></span><b>Menu</b></button>
+      <div class="grow"><div class="branch" x-text="user?.role==='head_office'||user?.role==='admin' ? 'Head Office · all branches' : branchName(user?.branch_id)"></div>
+        <div class="tiny muted top-date" x-text="new Date().toLocaleDateString('en-MY',{weekday:'long',day:'numeric',month:'long',year:'numeric'})"></div></div>
+      <a href="#messages" class="btn ghost sm alerts-btn" x-show="unread"><span class="alerts-word" x-text="t('alerts')"></span><span class="badge" x-text="unread"></span></a>
+      <span class="seg wide-only"><button :class="lang==='en'&&'on'" @click="setLang('en')">EN</button><button :class="lang==='ms'&&'on'" @click="setLang('ms')">BM</button></span>
+      <button class="btn ghost sm wide-only" @click="logout()" x-text="t('signout')"></button>
+    </header>
+
+    <main class="main">
+      <!-- photo banner for each module -->
+      <div class="banner" x-show="page!=='home'" :style="`background-image:url(${img(pageInfo().img)})`">
+        <div class="in"><span class="tag" x-text="'Process ' + pageInfo().p"></span><h1 x-text="t(page)"></h1><p x-text="pageInfo().sub"></p></div>
+      </div>
+
+<!-- ======================= HOME ======================= -->
+<section x-show="page==='home'">
+  <div class="banner" :style="`background-image:url(${img('hero')});min-height:190px`">
+    <div class="in"><span class="tag" x-text="ROLE_NAME[user?.role]"></span><h1 x-text="t('welcome') + ', ' + (user?.full_name||'')"></h1>
+      <p>Choose where to start. Your screens are based on your role.</p></div>
+  </div>
+  <div class="tiles">
+    <template x-for="p in PAGES.filter(p=>p.id!=='home'&&can(p.id))" :key="p.id">
+      <a class="tile" :href="'#'+p.id"><div class="ph" :style="`background-image:url(${img(p.img)})`"><span x-text="p.p"></span></div>
+        <div class="tx"><b x-text="t(p.id)"></b><small x-text="p.sub"></small></div></a>
+    </template>
+  </div>
+  <div class="grid g2" style="margin-top:18px">
+    <div class="card" x-show="can('appointments')">
+      <div class="card-h"><h3>Today at this branch</h3><a href="#appointments" class="linkbtn">Open appointments</a></div>
+      <div class="kpis" style="margin:0"><div class="kpi"><div class="l">Appointments today</div><div class="v" x-text="home.appts"></div></div>
+        <div class="kpi"><div class="l">In the clinic now</div><div class="v" x-text="home.queue.length"></div></div></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3 x-text="t('alerts')"></h3><a href="#messages" class="linkbtn">See all</a></div>
+      <ul class="list"><template x-for="a in alerts.slice(0,4)" :key="a.notification_id">
+        <li style="cursor:default"><div class="row between"><span class="pill" :class="a.notification_type==='Stock Alert'?'warn':a.notification_type==='Rejected Claim'?'bad':''" x-text="a.notification_type"></span><span class="tiny muted" x-text="fmtDT(a.sent_at)"></span></div><div class="small" x-text="a.message" style="margin-top:4px"></div></li></template>
+        <li x-show="!alerts.length" class="muted small" style="cursor:default">No alerts. All clear.</li></ul>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 1.0 PATIENTS ======================= -->
+<section x-show="page==='patients'">
+  <div class="grid g-side">
+    <div class="stack">
+      <div class="card">
+        <label class="f search"><span>1.4 Search &amp; retrieve: any branch</span>
+          <input class="in-t" type="search" :placeholder="t('search')" x-model="pt.q" @input.debounce.250ms="pSearch()" aria-describedby="sh"></label>
+        <div class="hint" id="sh">Try “Lee”, an IC number, a phone number or “PT00000”.</div>
+        <button class="btn teal" style="width:100%;margin-top:12px" x-show="user?.role==='receptionist'" @click="pNew()">Register new patient</button>
+      </div>
+      <div class="card flush" x-show="pt.results.length || pt.msg">
+        <ul class="list scroll" style="max-height:480px">
+          <template x-for="r in pt.results" :key="r.patient_id">
+            <li :class="pt.sel?.patient_id===r.patient_id&&'sel'" @click="pOpen(r.patient_id)" tabindex="0" @keydown.enter="pOpen(r.patient_id)">
+              <div class="row between"><b x-text="r.full_name"></b><span class="tiny muted mono" x-text="r.patient_id"></span></div>
+              <div class="small muted"><span x-text="r.ic_passport_no"></span> · <span x-text="r.phone"></span> · <span x-text="age(r.date_of_birth)"></span></div>
+              <div class="tiny"><span class="muted">Registered: </span><span x-text="r.registered_branch"></span>
+                <span class="pill bad" style="margin-left:6px" x-show="r.allergies && r.allergies!=='None known'" x-text="'Allergy: '+r.allergies"></span></div>
+            </li>
+          </template>
+          <li x-show="pt.msg" class="empty" style="cursor:default"><img src="/static/img/records.jpg" alt=""><span x-text="pt.msg"></span>
+            <div x-show="user?.role==='receptionist'"><button class="linkbtn" @click="pNew()">Register this patient</button></div></li>
+        </ul>
+      </div>
+    </div>
+
+    <div>
+      <!-- record view: output design -->
+      <div class="card" data-detail x-show="pt.mode==='view' && pt.sel">
+        <template x-if="pt.sel"><div>
+          <div class="pbanner"><div class="avatar" x-text="initials(pt.sel.full_name)"></div>
+            <div class="grow"><h2 x-text="pt.sel.full_name"></h2><div class="small muted"><span class="mono" x-text="pt.sel.patient_id"></span> · <span x-text="pt.sel.gender"></span> · <span x-text="age(pt.sel.date_of_birth)"></span> · registered at <span x-text="pt.sel.registered_branch"></span></div></div>
+            <button class="btn ghost sm" x-show="user?.role==='receptionist'" @click="pEdit()">Edit details</button>
+            <a class="btn sm" x-show="can('appointments') && user?.role==='receptionist'" href="#appointments" @click="ap.patient={patient_id:pt.sel.patient_id, full_name:pt.sel.full_name}">Book appointment</a></div>
+          <div class="allergy" style="margin-top:14px" x-show="pt.sel.allergies!=='None known'"><b>ALLERGY</b><span x-text="pt.sel.allergies"></span></div>
+          <div class="note good" style="margin-top:14px" x-show="pt.sel.allergies==='None known'">No known allergies recorded.</div>
+          <div class="facts">
+            <div><small>IC / Passport</small><b class="mono" x-text="pt.sel.ic_passport_no"></b></div>
+            <div><small>Date of birth</small><b x-text="fmtD(pt.sel.date_of_birth)"></b></div>
+            <div><small>Phone (SMS)</small><b x-text="pt.sel.phone"></b></div>
+            <div><small>Emergency contact</small><b x-text="pt.sel.emergency_contact"></b></div>
+            <div style="grid-column:span 2"><small>Address</small><b x-text="pt.sel.address||'-'"></b></div>
+            <div><small>Panel / insurance</small><b x-text="pt.sel.coverage ? pt.sel.coverage.provider_name : 'Self-pay'"></b></div>
+            <div x-show="pt.sel.coverage"><small>Policy no. / valid until</small><b x-text="pt.sel.coverage?.policy_no + ' · ' + fmtD(pt.sel.coverage?.valid_until)"></b></div>
+            <div><small>Last updated</small><b x-text="fmtDT(pt.sel.last_updated_at) + (pt.sel.updated_by_name ? ' by ' + pt.sel.updated_by_name : '')"></b></div>
+          </div>
+          <div class="note" style="margin-top:14px" x-show="pt.conf && pt.conf.patient_id===pt.sel.patient_id">
+            <div class="row between"><span x-text="'1.5 Confirmation sent by SMS: ' + pt.conf?.message"></span><button class="btn ghost sm" @click="pPrintConf()">Print slip</button></div></div>
+          <div class="grid g2" style="margin-top:20px">
+            <div><h3 style="margin-bottom:12px">Visit history · all branches</h3>
+              <div class="timeline"><template x-for="v in pt.sel.visits" :key="v.consultation_id">
+                <div class="ev" :class="v.branch_name!==pt.sel.registered_branch&&'other'"><div class="small b" x-text="fmtD(v.visit_date) + ' · ' + v.branch_name.replace('SFC ','')"></div>
+                  <div x-text="v.diagnosis"></div><div class="tiny muted" x-text="v.doctor + ' · ' + v.specialisation"></div></div></template>
+                <p class="muted small" x-show="!pt.sel.visits.length">No visits yet.</p></div>
+              <p class="tiny muted" x-show="pt.sel.visits.length">Filled dots are visits at a different branch from where the patient registered.</p></div>
+            <div><h3 style="margin-bottom:12px">Appointments</h3>
+              <table class="tbl"><tbody><template x-for="a in pt.sel.appointments" :key="a.appointment_id"><tr>
+                <td><div class="small b" x-text="fmtDT(a.appointment_datetime)"></div><div class="tiny muted" x-text="a.service_type + ' · ' + a.branch_name.replace('SFC ','')"></div></td>
+                <td class="right"><span class="pill" :class="{Completed:'good',Cancelled:'bad','No-show':'bad',Booked:'teal'}[a.status]" x-text="a.status"></span></td></tr></template></tbody></table></div>
+          </div>
+        </div></template>
+      </div>
+
+      <div class="card empty" x-show="pt.mode==='view' && !pt.sel"><img src="/static/img/family.jpg" alt=""><h3>Find a patient to open their record</h3>
+        <p class="small">One record per patient, shared by all five branches, so nobody has to repeat their history.</p></div>
+
+      <!-- registration form: input design (4 steps) -->
+      <div class="card" data-detail x-show="pt.mode==='form'">
+        <div class="card-h"><h2 x-text="pt.form.patient_id ? 'Update patient details' : 'Register new patient'"></h2><button class="linkbtn" @click="pt.mode='view'">Cancel</button></div>
+        <div class="steps"><template x-for="(s,i) in ['Identity','Contact','Medical & panel','Review']"><div :class="pt.step===i+1?'on':pt.step>i+1?'done':''"><span x-text="(i+1)+'.'"></span> <span class="nm" x-text="s"></span></div></template></div>
+        <div class="note bad" x-show="pt.dup" style="margin-bottom:14px">
+          <b x-text="pt.dup?.type==='exact' ? '1.2 Duplicate found' : '1.2 Possible duplicate'"></b><div x-text="pt.dup?.message"></div>
+          <div class="row" style="margin-top:8px"><button class="btn sm" @click="pOpen(pt.dup.patient_id)" x-text="'Open ' + pt.dup?.full_name"></button>
+            <button class="btn ghost sm" x-show="pt.dup?.type==='possible'" @click="pt.dup=null; pSave(true)">Different person, continue</button></div>
+        </div>
+        <form @submit.prevent="pt.step<4 ? pNext() : pSave()" novalidate>
+          <div class="grid g2" x-show="pt.step===1">
+            <label class="f" :class="pt.errs.full_name&&'has-err'" style="grid-column:span 2"><span>Full name as on IC / passport <i>*</i></span><input class="in-t" x-model="pt.form.full_name" autocomplete="off"><div class="err" x-text="pt.errs.full_name"></div></label>
+            <label class="f" :class="pt.errs.ic_passport_no&&'has-err'"><span>IC or passport number <i>*</i></span><input class="in-t mono" x-model="pt.form.ic_passport_no" placeholder="900101-10-1234" inputmode="text"><div class="err" x-text="pt.errs.ic_passport_no"></div><div class="hint">Dashes are optional. Used to stop duplicate records.</div></label>
+            <label class="f" :class="pt.errs.date_of_birth&&'has-err'"><span>Date of birth <i>*</i></span><input class="in-t" type="date" :max="todayStr()" x-model="pt.form.date_of_birth"><div class="err" x-text="pt.errs.date_of_birth"></div></label>
+            <fieldset :class="pt.errs.gender&&'has-err'"><label class="f"><span>Gender <i>*</i></span></label><div class="seg"><button type="button" :class="pt.form.gender==='Female'&&'on'" @click="pt.form.gender='Female'">Female</button><button type="button" :class="pt.form.gender==='Male'&&'on'" @click="pt.form.gender='Male'">Male</button></div><div class="err" x-text="pt.errs.gender"></div></fieldset>
+          </div>
+          <div class="grid g2" x-show="pt.step===2">
+            <label class="f" :class="pt.errs.phone&&'has-err'"><span>Mobile number <i>*</i></span><input class="in-t mono" type="tel" inputmode="tel" x-model="pt.form.phone" placeholder="012-345 6789"><div class="err" x-text="pt.errs.phone"></div><div class="hint">Appointment SMS go to this number.</div></label>
+            <label class="f" :class="pt.errs.emergency_contact&&'has-err'"><span>Emergency contact <i>*</i></span><input class="in-t" x-model="pt.form.emergency_contact" placeholder="Name - phone"><div class="err" x-text="pt.errs.emergency_contact"></div></label>
+            <label class="f" style="grid-column:span 2"><span>Home address</span><textarea x-model="pt.form.address" rows="2"></textarea></label>
+          </div>
+          <div class="stack" x-show="pt.step===3">
+            <label class="check"><input type="checkbox" x-model="pt.form.no_allergy"><span><b>No known allergies</b><br><span class="small muted">Tick only after asking the patient.</span></span></label>
+            <label class="f" :class="pt.errs.allergies&&'has-err'" x-show="!pt.form.no_allergy"><span>Drug / food allergies <i>*</i></span><input class="in-t" x-model="pt.form.allergies" placeholder="e.g. Penicillin, seafood"><div class="err" x-text="pt.errs.allergies"></div></label>
+            <div class="grid g3">
+              <label class="f"><span>Panel / insurance</span><select x-model="pt.form.provider_id"><option value="">Self-pay (none)</option><template x-for="p in ref.providers" :key="p.provider_id"><option :value="p.provider_id" x-text="p.provider_name" :selected="p.provider_id===pt.form.provider_id"></option></template></select></label>
+              <label class="f" :class="pt.errs.policy_no&&'has-err'" x-show="pt.form.provider_id"><span>Policy / member no. <i>*</i></span><input class="in-t mono" x-model="pt.form.policy_no"><div class="err" x-text="pt.errs.policy_no"></div></label>
+              <label class="f" x-show="pt.form.provider_id"><span>Valid until</span><input class="in-t" type="date" :min="todayStr()" x-model="pt.form.valid_until"></label>
+            </div>
+          </div>
+          <div x-show="pt.step===4">
+            <p class="muted small">Check the details with the patient before saving.</p>
+            <div class="facts">
+              <div><small>Name</small><b x-text="pt.form.full_name"></b></div><div><small>IC / passport</small><b class="mono" x-text="pt.form.ic_passport_no"></b></div>
+              <div><small>Date of birth</small><b x-text="fmtD(pt.form.date_of_birth)"></b></div><div><small>Gender</small><b x-text="pt.form.gender"></b></div>
+              <div><small>Mobile</small><b x-text="pt.form.phone"></b></div><div><small>Emergency</small><b x-text="pt.form.emergency_contact"></b></div>
+              <div><small>Allergies</small><b x-text="pt.form.no_allergy ? 'None known' : pt.form.allergies"></b></div>
+              <div><small>Panel</small><b x-text="ref.providers.find(p=>p.provider_id===pt.form.provider_id)?.provider_name || 'Self-pay'"></b></div>
+            </div>
+          </div>
+          <div class="row between" style="margin-top:22px">
+            <button type="button" class="btn ghost" x-show="pt.step>1" @click="pt.step--">Back</button><span x-show="pt.step===1"></span>
+            <button class="btn" :class="pt.step===4&&'teal'" :disabled="busy" x-text="pt.step<4 ? 'Continue' : (pt.form.patient_id ? 'Save changes' : 'Register patient')"></button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 2.0 APPOINTMENTS ======================= -->
+<section x-show="page==='appointments'">
+  <div class="tabs" role="tablist">
+    <button x-show="user?.role==='receptionist'" :class="ap.tab==='book'&&'on'" @click="ap.tab='book';aLoadTab()">Book &amp; walk-in</button>
+    <button :class="ap.tab==='list'&&'on'" @click="ap.tab='list';aLoadTab()">2.5 Daily list</button>
+    <button :class="ap.tab==='queue'&&'on'" @click="ap.tab='queue';aLoadTab()">Queue board</button>
+    <button :class="ap.tab==='schedule'&&'on'" @click="ap.tab='schedule';aLoadTab()">2.1 Doctor availability</button>
+  </div>
+
+  <div x-show="ap.tab==='book'" class="grid g-side">
+    <div class="stack">
+      <div class="card">
+        <h3 style="margin-bottom:10px">1 · Patient</h3>
+        <div x-show="ap.patient" class="row between note"><span><b x-text="ap.patient?.full_name"></b> <span class="mono small" x-text="ap.patient?.patient_id"></span></span><button class="linkbtn" @click="ap.patient=null">Change</button></div>
+        <div x-show="!ap.patient"><input class="in-t" type="search" placeholder="Name, IC, phone or ID" x-model="ap.pq" @input.debounce.250ms="aFindPatient()">
+          <ul class="list"><template x-for="r in ap.presults.slice(0,6)" :key="r.patient_id"><li @click="ap.patient=r;ap.presults=[]"><b x-text="r.full_name"></b><div class="tiny muted" x-text="r.ic_passport_no+' · '+r.phone"></div></li></template></ul>
+          <a href="#patients" class="linkbtn small">Not registered? Register on the Patients page</a></div>
+        <div class="note warn" x-show="ap.resch" style="margin-top:10px"><span x-text="'Rescheduling ' + ap.resch?.appointment_id + ' (' + fmtDT(ap.resch?.appointment_datetime) + ')'"></span> <button class="linkbtn" @click="ap.resch=null">Stop</button></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:10px">2 · Service</h3>
+        <div class="grid g3 keep3" style="gap:8px"><template x-for="s in SERVICES" :key="s[0]"><button class="svc" :class="ap.service===s[0]&&'on'" @click="ap.service=s[0];aSlots()" :aria-pressed="ap.service===s[0]"><div class="ph" :style="`background-image:url(${img(s[1])})`"></div><div class="small" x-text="s[0]"></div></button></template></div>
+        <div class="grid g2" style="margin-top:12px">
+          <label class="f"><span>Branch</span><select x-model="ap.branch" @change="aSlots()"><template x-for="b in ref.branches" :key="b.branch_id"><option :value="b.branch_id" x-text="b.branch_name.replace('SFC ','')" :selected="b.branch_id===ap.branch"></option></template></select></label>
+          <label class="f"><span>Date</span><input class="in-t" type="date" :min="todayStr()" x-model="ap.date" @change="aSlots()"></label>
+        </div>
+        <button class="btn ghost" style="width:100%;margin-top:12px" @click="aWalkin()" :disabled="!ap.patient">Walk-in now: next free slot today</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>3 · 2.2 Available slots</h3><span class="small muted" x-text="fmtD(ap.date) + ' · ' + ap.service"></span></div>
+      <template x-for="d in ap.doctors" :key="d.staff_id"><div style="margin-bottom:18px">
+        <div class="row between" style="margin-bottom:8px"><b x-text="d.doctor"></b><span class="tiny muted" x-text="d.slots.filter(s=>s.free).length + ' free of ' + d.slots.length"></span></div>
+        <div class="slots"><template x-for="s in d.slots" :key="s.datetime"><button class="slot" :disabled="!s.free" :class="ap.pick?.datetime===s.datetime&&ap.pick?.staff_id===d.staff_id&&'on'" @click="ap.pick={...s,staff_id:d.staff_id,doctor:d.doctor}" x-text="s.time" :aria-label="d.doctor+' '+s.time+(s.free?' free':' taken')"></button></template></div>
+      </div></template>
+      <div class="empty" x-show="!ap.doctors.length"><img src="/static/img/waiting.jpg" alt=""><span>No doctor for this service is on duty that day at this branch. Try another date or branch.</span></div>
+      <div class="row between note" style="margin-top:8px" x-show="ap.pick">
+        <span>Selected <b x-text="ap.pick?.time"></b> with <b x-text="ap.pick?.doctor"></b></span>
+        <button class="btn teal" :disabled="!ap.patient||busy" @click="aBook()" x-text="ap.resch ? 'Confirm new time' : 'Confirm booking & send SMS'"></button></div>
+      <p class="tiny muted">Crossed-out times are booked or past. Doctors on leave do not appear.</p>
+    </div>
+  </div>
+
+  <div x-show="ap.tab==='list'" class="card">
+    <div class="card-h"><div class="row"><h3>Appointments for</h3><input class="in-t" style="width:auto" type="date" x-model="ap.listDate" @change="aList()"></div>
+      <button class="btn ghost sm" x-show="user?.role==='receptionist'" @click="aReminders()">2.4 Send tomorrow's reminders</button></div>
+    <div class="scroll"><table class="tbl"><thead><tr><th>Time</th><th>Patient</th><th>Service · doctor</th><th>Type</th><th>Status</th><th></th></tr></thead><tbody>
+      <template x-for="a in ap.list" :key="a.appointment_id"><tr>
+        <td class="mono b" x-text="a.appointment_datetime.slice(11,16)"></td>
+        <td><div class="b" x-text="a.full_name"></div><div class="tiny muted" x-text="a.phone"></div></td>
+        <td><div x-text="a.service_type"></div><div class="tiny muted" x-text="a.doctor"></div></td>
+        <td class="small" x-text="a.booking_type"></td>
+        <td><span class="pill" :class="{Completed:'good',Cancelled:'bad','No-show':'bad','Checked-in':'teal'}[a.status]" x-text="a.status + (a.queue_no ? ' · ' + a.queue_no : '')"></span></td>
+        <td class="right nowrap"><template x-if="a.status==='Booked' && user?.role==='receptionist'"><span class="row gap8" style="justify-content:flex-end">
+          <button class="btn sm" @click="aCheckin(a)" x-show="ap.listDate===todayStr()">Check in</button><button class="btn ghost sm" @click="aReschedule(a)">Reschedule</button><button class="btn danger sm" @click="aCancel(a)">Cancel</button></span></template></td>
+      </tr></template>
+      <tr x-show="!ap.list.length"><td colspan="6" class="empty">No appointments on this day.</td></tr>
+    </tbody></table></div>
+  </div>
+
+  <div x-show="ap.tab==='queue'">
+    <p class="small muted" style="margin:0 0 12px">Live queue for today. Refreshes every 15 seconds. Status is updated by nurses, doctors, pharmacy and billing as the patient moves through the clinic.</p>
+    <div class="board">
+      <template x-for="s in ['Waiting','Vitals Taken','In Consultation','At Pharmacy','Paying']" :key="s"><div class="lane"><h4><span x-text="s"></span><span class="pill" x-text="lane(s).length"></span></h4>
+        <template x-for="q in lane(s)" :key="q.queue_id"><div class="qcard"><div class="row between"><span class="no" x-text="q.queue_no"></span><span class="tiny muted" x-show="q.est_wait_min!==undefined" x-text="'~' + q.est_wait_min + ' min'"></span></div>
+          <div class="b" x-text="q.full_name"></div><div class="tiny muted" x-text="q.doctor"></div></div></template></div></template>
+    </div>
+    <p class="small muted" x-text="lane('Done').length + ' patients completed today.'"></p>
+  </div>
+
+  <div x-show="ap.tab==='schedule'" class="card">
+    <div class="card-h"><div class="row"><h3>Week from</h3><input class="in-t" style="width:auto" type="date" x-model="ap.schedFrom" @change="aSched()"></div>
+      <span class="small muted" x-text="user?.role==='branch_manager' ? 'Click a day to set hours or leave.' : 'View only. Branch managers update schedules.'"></span></div>
+    <div style="overflow:auto"><table class="tbl"><thead><tr><th>Doctor</th><template x-for="d in schedDays()"><th class="center" x-text="new Date(d+'T00:00').toLocaleDateString('en-MY',{weekday:'short',day:'numeric'})"></th></template></tr></thead><tbody>
+      <template x-for="s in ap.sched.staff" :key="s.staff_id"><tr><td><b x-text="s.full_name"></b><div class="tiny muted" x-text="s.specialisation"></div></td>
+        <template x-for="d in schedDays()"><td class="center"><button class="linkbtn small" :disabled="user?.role!=='branch_manager'"
+          @click="const c=schedCell(s.staff_id,d); ap.sForm={staff_id:s.staff_id, name:s.full_name, work_date:d, start_time:c?.start_time||'09:00', end_time:c?.end_time||'17:00', leave_status:c?.leave_status||'On Duty'}">
+          <span x-show="schedCell(s.staff_id,d)?.leave_status==='On Leave'" class="pill bad">Leave</span>
+          <span x-show="schedCell(s.staff_id,d)?.leave_status==='On Duty'" class="mono" x-text="schedCell(s.staff_id,d)?.start_time+'–'+schedCell(s.staff_id,d)?.end_time"></span>
+          <span x-show="!schedCell(s.staff_id,d)" class="muted">off</span></button></td></template></tr></template>
+    </tbody></table></div>
+  </div>
+</section>
+
+<!-- ======================= 3.0 CONSULTATION ======================= -->
+<section x-show="page==='consult'">
+  <div class="grid g-side">
+    <div class="card flush">
+      <div class="card-h" style="padding:14px 16px 0"><h3 x-text="user?.role==='nurse' ? 'Branch queue' : 'My patients today'"></h3><label class="tiny row gap8"><input type="checkbox" x-model="cs.showDone"> show finished</label></div>
+      <ul class="list"><template x-for="q in cQueue()" :key="q.queue_id">
+        <li :class="cs.open?.queue.queue_id===q.queue_id&&'sel'" @click="cOpen(q)" tabindex="0" @keydown.enter="cOpen(q)">
+          <div class="row between"><span><b class="mono" x-text="q.queue_no"></b> · <b x-text="q.full_name"></b></span><span class="pill" :class="{'Vitals Taken':'teal','In Consultation':'warn',Waiting:''}[q.queue_status]" x-text="q.queue_status"></span></div>
+          <div class="tiny muted" x-text="q.service_type + ' · ' + age(q.date_of_birth) + ' · ' + q.doctor"></div>
+          <div class="tiny" x-show="q.allergies!=='None known'"><span class="pill bad" x-text="'Allergy: ' + q.allergies"></span></div></li></template>
+        <li class="empty" x-show="!cQueue().length" style="cursor:default"><img src="/static/img/waiting.jpg" alt="">Nobody waiting right now.</li></ul>
+    </div>
+
+    <div>
+      <div class="card empty" x-show="!cs.open"><img src="/static/img/consult.jpg" alt=""><h3>Choose a patient from the queue</h3><p class="small">Their record from every SFC branch opens here.</p></div>
+      <template x-if="cs.open"><div class="stack" data-detail>
+        <div class="card">
+          <div class="pbanner"><div class="avatar" x-text="initials(cs.open.patient.full_name)"></div><div class="grow"><h2 x-text="cs.open.patient.full_name"></h2>
+            <div class="small muted" x-text="cs.open.patient.patient_id + ' · ' + cs.open.patient.gender + ' · ' + age(cs.open.patient.date_of_birth) + ' · ' + cs.open.queue.service_type + ' · Queue ' + cs.open.queue.queue_no"></div></div></div>
+          <div class="allergy" style="margin-top:12px" x-show="cs.open.patient.allergies!=='None known'"><b>ALLERGY</b><span x-text="cs.open.patient.allergies"></span></div>
+        </div>
+
+        <!-- Nurse: vital signs & queue status update -->
+        <div class="card">
+          <div class="card-h"><h3>Vital signs</h3><span class="small muted" x-show="cs.open.consultation.vitals">Recorded</span></div>
+          <form class="grid g4 keep2" @submit.prevent="cVitals()">
+            <label class="f"><span>Temp (°C)</span><input class="in-t mono" type="number" step="0.1" min="30" max="45" x-model="cs.vit.temp" :readonly="user?.role!=='nurse'" required></label>
+            <label class="f"><span>Blood pressure</span><input class="in-t mono" x-model="cs.vit.bp" placeholder="120/80" pattern="\d{2,3}/\d{2,3}" :readonly="user?.role!=='nurse'" required></label>
+            <label class="f"><span>Pulse (bpm)</span><input class="in-t mono" type="number" x-model="cs.vit.pulse" :readonly="user?.role!=='nurse'"></label>
+            <label class="f"><span>Weight (kg)</span><input class="in-t mono" type="number" step="0.1" x-model="cs.vit.weight" :readonly="user?.role!=='nurse'"></label>
+            <div style="grid-column:1/-1" x-show="user?.role==='nurse'" class="row"><button class="btn teal">Save vitals &amp; mark ready</button>
+              <button type="button" class="btn ghost" @click="cStatus(cs.open.queue,'Waiting'); cs.open=null">Back to waiting</button></div>
+          </form>
+        </div>
+
+        <div class="grid" style="align-items:start;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)">
+          <!-- Doctor: consultation notes & prescription order -->
+          <div class="card" x-show="user?.role!=='nurse'">
+            <h3 style="margin-bottom:12px">Consultation notes</h3>
+            <form class="stack" @submit.prevent="cComplete()">
+              <label class="f"><span>Symptoms / history</span><textarea x-model="cs.notes.symptoms" rows="2"></textarea></label>
+              <label class="f" :class="cs.errs.diagnosis&&'has-err'"><span>Diagnosis <i>*</i></span><input class="in-t" x-model="cs.notes.diagnosis" list="dxl"><datalist id="dxl"><option>Upper respiratory tract infection</option><option>Acute gastroenteritis</option><option>Hypertension - follow up</option><option>Allergic rhinitis</option><option>Viral fever</option><option>Dental caries</option></datalist><div class="err" x-text="cs.errs.diagnosis"></div></label>
+              <label class="f"><span>Treatment / advice</span><textarea x-model="cs.notes.treatment" rows="2"></textarea></label>
+              <div><div class="small b" style="margin-bottom:6px;color:var(--ink-2)">Procedures, vaccines, dental work</div>
+                <div class="row wrap gap8"><template x-for="p in cs.procs.filter(p=>cs.open.queue.service_type==='Dental' ? p.item_type!=='Vaccine' : p.item_type!=='Dental')" :key="p.description">
+                  <span class="chip" :class="cs.procSel.includes(p.description)&&'on'" @click="cs.procSel.includes(p.description)?cs.procSel=cs.procSel.filter(x=>x!==p.description):cs.procSel.push(p.description)" x-text="p.description + ' · RM' + p.unit_price" tabindex="0" @keydown.enter="$el.click()"></span></template></div></div>
+              <div><div class="row between"><span class="small b" style="color:var(--ink-2)">Prescription</span><button type="button" class="linkbtn" @click="cAddRx()">Add medicine</button></div>
+                <template x-for="(r,i) in cs.rx" :key="i"><div class="rx-row">
+                  <select x-model="r.medication_id" aria-label="Medicine"><option value="">Medicine…</option><template x-for="m in cs.open.medications" :key="m.medication_id"><option :value="m.medication_id" x-text="m.medication_name"></option></template></select>
+                  <input class="in-t" x-model="r.dosage" placeholder="Dosage, e.g. 1 tab 3x daily" aria-label="Dosage"><input class="in-t mono" type="number" min="1" x-model="r.quantity" aria-label="Quantity">
+                  <button type="button" class="btn danger sm rx-del" @click="cs.rx.splice(i,1)" aria-label="Remove">Remove</button></div></template>
+                <p class="tiny muted" x-show="!cs.rx.length">No medicine. Patient goes straight to billing.</p></div>
+              <label class="f"><span>Follow-up date</span><input class="in-t" type="date" :min="todayStr(1)" x-model="cs.notes.follow_up_date"></label>
+              <div class="note bad" x-show="cs.allergyHit"><div x-text="cs.allergyHit"></div><div class="row" style="margin-top:8px"><button type="button" class="btn sm" @click="cs.allergyHit=null">Change prescription</button><button type="button" class="btn danger sm" @click="cComplete(true)">Prescribe anyway (documented)</button></div></div>
+              <div class="row between"><span class="small">Estimated charges <b x-text="RM(cTotal())"></b></span><button class="btn teal" :disabled="busy">Complete visit</button></div>
+            </form>
+          </div>
+          <div class="card">
+            <h3 style="margin-bottom:12px">History from all branches</h3>
+            <div class="timeline scroll" style="max-height:640px"><template x-for="h in cs.open.history" :key="h.visit_date">
+              <div class="ev other"><div class="small b" x-text="fmtD(h.visit_date) + ' · ' + h.branch_name.replace('SFC ','')"></div><div x-text="h.diagnosis"></div>
+                <div class="tiny muted" x-text="h.treatment"></div><div class="tiny muted" x-text="h.doctor + (h.vitals ? ' · BP ' + h.vitals.bp + ' · ' + h.vitals.temp + '°C' : '')"></div></div></template>
+              <p class="muted small" x-show="!cs.open.history.length">First visit to SFC.</p></div>
+          </div>
+        </div>
+      </div></template>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 4.0 PHARMACY & STOCK ======================= -->
+<section x-show="page==='pharmacy'">
+  <div class="tabs">
+    <button x-show="user?.role==='pharmacy'" :class="ph.tab==='queue'&&'on'" @click="ph.tab='queue';phLoad()">Prescription queue</button>
+    <button :class="ph.tab==='stock'&&'on'" @click="ph.tab='stock';phLoad()">Branch stock</button>
+    <button :class="ph.tab==='transfers'&&'on'" @click="ph.tab='transfers';phLoad()">Transfers</button>
+    <button :class="ph.tab==='network'&&'on'" @click="ph.tab='network';phLoad()">Network view (all branches)</button>
+  </div>
+
+  <div x-show="ph.tab==='queue'" class="grid g-side">
+    <div class="card flush"><ul class="list"><template x-for="r in ph.rx" :key="r.prescription_id">
+      <li :class="ph.open?.prescription_id===r.prescription_id&&'sel'" @click="phOpen(r)"><div class="row between"><b x-text="r.full_name"></b><span class="pill" :class="r.status==='Pending'?'warn':'good'" x-text="r.status"></span></div>
+        <div class="tiny muted" x-text="r.prescription_id + ' · ' + (r.queue_no||'') + ' · ' + r.doctor"></div><div class="tiny" x-show="r.allergy_alert"><span class="pill bad" x-text="'Allergy: ' + r.allergies"></span></div></li></template>
+      <li class="empty" x-show="!ph.rx.length" style="cursor:default"><img src="/static/img/blister.jpg" alt="">No prescriptions waiting.</li></ul></div>
+    <div>
+      <div class="card empty" x-show="!ph.open"><img src="/static/img/pharmacy.jpg" alt=""><h3>Select a prescription</h3><p class="small">Prescriptions arrive here as soon as the doctor completes the visit. No handwritten slips.</p></div>
+      <template x-if="ph.open"><div class="card stack" data-detail>
+        <div class="row between"><div><h2 x-text="ph.open.full_name"></h2><div class="small muted" x-text="ph.open.patient_id + ' · ' + age(ph.open.date_of_birth) + ' · ' + ph.open.diagnosis + ' · ' + ph.open.doctor"></div></div><span class="mono" x-text="ph.open.prescription_id"></span></div>
+        <div class="allergy" x-show="ph.open.allergy_alert" :style="!ph.open.allergy_conflicts.length && 'background:var(--warn-bg);color:var(--warn);border-color:#f1d39f'"><b :style="!ph.open.allergy_conflicts.length && 'background:var(--warn)'">ALLERGY</b><span x-text="'Patient is allergic to: ' + ph.open.allergies + (ph.open.allergy_conflicts.length ? '. CONFLICT with ' + ph.open.allergy_conflicts.join(', ') + ': check with the doctor before dispensing.' : '. No conflict with these medicines.')"></span></div>
+        <table class="tbl"><thead><tr><th>Medicine</th><th>Dosage</th><th class="num">Qty</th><th>Batch (first to expire first)</th></tr></thead><tbody>
+          <template x-for="i in ph.open.items" :key="i.item_id"><tr><td class="b" x-text="i.medication_name"></td><td class="small" x-text="i.dosage"></td><td class="num" x-text="i.quantity + ' ' + i.unit"></td>
+            <td><select x-model="i.batch_id" :disabled="ph.open.status!=='Pending'" style="min-height:36px;padding:6px"><template x-for="b in i.batches" :key="b.batch_id"><option :value="b.batch_id" x-text="b.batch_no + ' · exp ' + fmtD(b.expiry_date) + ' · ' + b.quantity_on_hand + ' left'"></option></template></select>
+              <div class="err" x-show="i.available < i.quantity" x-text="'Only ' + i.available + ' in stock: request a transfer'"></div></td></tr></template></tbody></table>
+        <div x-show="ph.open.status==='Pending'" class="stack">
+          <label class="check"><input type="checkbox" x-model="ph.checked"><span><b>I have checked allergies and confirmed the patient's identity</b><br><span class="small muted">Required before dispensing.</span></span></label>
+          <button class="btn teal lg" :disabled="!ph.checked||busy" @click="phDispense()">Dispense &amp; deduct stock</button></div>
+        <div x-show="ph.labels" class="note good row between"><span>Dispensed. Labels are ready to print.</span><button class="btn sm" @click="phPrintLabels()">Print labels</button></div>
+        <div x-show="ph.labels"><template x-for="l in ph.labels"><div class="label"><div class="tiny muted" x-text="l.branch_name"></div><div class="med" x-text="l.medication_name"></div><div class="b" x-text="l.dosage"></div><div class="tiny" x-text="'Qty ' + l.quantity + ' ' + l.unit + ' · ' + l.full_name + ' · Batch ' + l.batch_no + ' · Exp ' + fmtD(l.expiry_date)"></div></div></template></div>
+      </div></template>
+    </div>
+  </div>
+
+  <div x-show="ph.tab==='stock'" class="stack">
+    <div class="row wrap">
+      <select style="width:auto" x-model="ph.branch" @change="phStock()" x-show="user?.role==='head_office'"><template x-for="b in ref.branches" :key="b.branch_id"><option :value="b.branch_id" x-text="b.branch_name" :selected="b.branch_id===ph.branch"></option></template></select>
+      <input class="in-t" style="max-width:280px" type="search" placeholder="Filter medicines" x-model="ph.filter">
+      <span class="grow"></span>
+      <button class="btn teal" x-show="user?.role==='pharmacy'" @click="ph.recv={medication_id:'',supplier_id:'',batch_no:'',expiry_date:'',quantity:''}">Receive stock</button>
+      <button class="btn ghost" x-show="user?.role==='pharmacy'" @click="ph.adj={batch_id:'',reason:'Damaged',quantity:''}">Adjust / dispose</button>
+      <button class="btn ghost" @click="ph.tr={batch_id:'',to_branch_id:'',quantity:''}">Request transfer</button>
+    </div>
+    <div class="card flush"><div class="scroll"><table class="tbl"><thead><tr><th>Medicine</th><th class="num">On hand</th><th class="num">Reorder level</th><th class="num">Near expiry (90 days)</th><th>Next expiry</th><th>Status</th></tr></thead><tbody>
+      <template x-for="m in phMeds()" :key="m.medication_id"><tr><td><b x-text="m.medication_name"></b><div class="tiny muted" x-text="'RM ' + m.unit_price.toFixed(2) + ' / ' + m.unit"></div></td>
+        <td class="num b" x-text="m.on_hand"></td><td class="num muted" x-text="m.reorder_level"></td><td class="num" x-text="m.near_expiry || '-'"></td><td class="small" x-text="fmtD(m.next_expiry)"></td>
+        <td><span class="pill bad" x-show="m.on_hand<=m.reorder_level">Low: reorder</span><span class="pill warn" x-show="m.on_hand>m.reorder_level && m.near_expiry>0">Expiring soon</span><span class="pill good" x-show="m.on_hand>m.reorder_level && !m.near_expiry">OK</span></td></tr></template>
+    </tbody></table></div></div>
+    <div class="card"><h3 style="margin-bottom:10px">Batches (first to expire first)</h3><div class="scroll" style="max-height:340px"><table class="tbl"><thead><tr><th>Batch</th><th>Medicine</th><th>Supplier</th><th>Expiry</th><th class="num">Qty</th><th></th></tr></thead><tbody>
+      <template x-for="b in ph.stock.batches" :key="b.batch_id"><tr><td class="mono" x-text="b.batch_no"></td><td x-text="b.medication_name"></td><td class="small muted" x-text="b.supplier_name"></td><td x-text="fmtD(b.expiry_date)"></td><td class="num" x-text="b.quantity_on_hand"></td>
+        <td><span class="pill" :class="b.flag==='Expired'?'bad':'warn'" x-show="b.flag" x-text="b.flag"></span></td></tr></template></tbody></table></div></div>
+  </div>
+
+  <div x-show="ph.tab==='transfers'" class="card">
+    <div class="card-h"><h3>Inter-branch stock transfers</h3><button class="btn ghost sm" @click="ph.tr={batch_id:'',to_branch_id:'',quantity:''}">Request transfer</button></div>
+    <table class="tbl"><thead><tr><th>Ref</th><th>Medicine · batch</th><th>From → To</th><th class="num">Qty</th><th>Requested</th><th>Status</th><th></th></tr></thead><tbody>
+      <template x-for="t in ph.stock.transfers" :key="t.transfer_id"><tr><td class="mono" x-text="t.transfer_id"></td><td><span x-text="t.medication_name"></span><div class="tiny muted mono" x-text="t.batch_no"></div></td>
+        <td class="small" x-text="t.from_name.replace('SFC ','') + ' → ' + t.to_name.replace('SFC ','')"></td><td class="num" x-text="t.quantity"></td><td class="small" x-text="fmtDT(t.requested_at)"></td>
+        <td><span class="pill" :class="{Approved:'good',Rejected:'bad',Requested:'warn'}[t.transfer_status]" x-text="t.transfer_status"></span></td>
+        <td class="right nowrap"><span x-show="t.transfer_status==='Requested' && ['head_office','branch_manager'].includes(user?.role)" class="row gap8"><button class="btn sm" @click="phDecide(t,'approve')">Approve</button><button class="btn danger sm" @click="phDecide(t,'reject')">Reject</button></span></td></tr></template>
+      <tr x-show="!ph.stock.transfers.length"><td colspan="7" class="empty">No transfers yet.</td></tr></tbody></table>
+  </div>
+
+  <div x-show="ph.tab==='network'" class="card">
+    <div class="card-h"><h3>Stock across all five branches</h3><span class="small muted">Units in date. Red cells are at or below the reorder level; darker blue means a large surplus that could be transferred.</span></div>
+    <div class="scroll"><table class="tbl heat keep"><thead><tr><th>Medicine</th><template x-for="b in ph.net.branches"><th class="center" x-text="b.branch_name.replace('SFC ','')"></th></template></tr></thead><tbody>
+      <template x-for="r in netRows()" :key="r.name"><tr><td><b x-text="r.name"></b><div class="tiny muted" x-text="'reorder at ' + r.lvl"></div></td>
+        <template x-for="b in ph.net.branches"><td class="c" :style="heat(r.cells[b.branch_id], r.lvl)" :title="r.cells[b.branch_id].near ? r.cells[b.branch_id].near + ' expire within 90 days' : ''">
+          <span x-text="r.cells[b.branch_id].qty"></span><span x-show="r.cells[b.branch_id].qty<=r.lvl" class="tiny"> low</span><div class="tiny" x-show="r.cells[b.branch_id].near" x-text="r.cells[b.branch_id].near + ' expiring'"></div></td></template></tr></template>
+    </tbody></table></div>
+  </div>
+</section>
+
+<!-- ======================= 5.0 BILLING ======================= -->
+<section x-show="page==='billing'">
+  <div class="grid g-side">
+    <div class="stack">
+      <div class="card flush"><div class="card-h" style="padding:14px 16px 0"><h3>Ready to bill</h3><span class="pill" x-text="bl.pending.length"></span></div>
+        <ul class="list"><template x-for="p in bl.pending" :key="p.consultation_id"><li @click="bGenerate(p)" tabindex="0" @keydown.enter="bGenerate(p)">
+          <div class="row between"><b x-text="p.full_name"></b><span class="mono small" x-text="p.queue_no"></span></div><div class="tiny muted" x-text="p.diagnosis + ' · ' + p.doctor"></div>
+          <div class="tiny"><span class="pill warn" x-show="p.rx_status==='Pending'">Waiting for pharmacy</span><span class="linkbtn" x-show="p.rx_status!=='Pending'">5.1 Generate itemised bill</span></div></li></template>
+          <li class="empty" x-show="!bl.pending.length" style="cursor:default">No completed visits waiting.</li></ul></div>
+      <div class="card flush"><div class="card-h" style="padding:14px 16px 0"><h3>Today's &amp; unpaid bills</h3></div>
+        <ul class="list scroll" style="max-height:320px"><template x-for="b in bl.bills" :key="b.bill_id"><li :class="bl.bill?.bill_id===b.bill_id&&'sel'" @click="bOpen(b)">
+          <div class="row between"><b x-text="b.full_name"></b><span class="pill" :class="statusPill(b.bill_status)" x-text="b.bill_status"></span></div>
+          <div class="tiny muted" x-text="b.bill_id + ' · ' + b.payer_type + ' · ' + RM(b.total_amount)"></div></li></template></ul></div>
+    </div>
+    <div>
+      <div class="card empty" x-show="!bl.bill"><img src="/static/img/terminal.jpg" alt=""><h3>Pick a visit to bill</h3><p class="small">Charges come from the consultation and the pharmacy. Nothing is re-typed or calculated by hand.</p></div>
+      <template x-if="bl.bill"><div class="grid g2" data-detail style="align-items:start">
+        <div class="card"><div class="doc">
+          <div class="hd"><img src="/static/img/logo.png" alt="Keluar Solutions"><div class="right small"><b x-text="bl.bill.branch_name"></b><br><span x-text="fmtDT(bl.bill.bill_date)"></span></div></div>
+          <div class="row between"><b>ITEMISED BILL</b><span class="mono" x-text="bl.bill.bill_id"></span></div>
+          <div class="small" style="margin:6px 0 10px"><span x-text="bl.bill.full_name"></span> · <span class="mono" x-text="bl.bill.ic_passport_no"></span></div>
+          <table class="tbl keep doc-tbl"><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Amount</th></tr></thead><tbody>
+            <template x-for="i in bl.bill.items" :key="i.bill_item_id"><tr><td><span x-text="i.description"></span><div class="tiny muted" x-text="i.item_type + ' · ' + RM(i.unit_price)"></div></td><td class="num" x-text="i.quantity"></td><td class="num" x-text="RM(i.amount)"></td></tr></template>
+            <tr><td colspan="2" class="b">Total</td><td class="num b" x-text="RM(bl.bill.total_amount)"></td></tr>
+            <tr x-show="bl.bill.panel_share"><td colspan="2" x-text="'Billed to ' + bl.bill.coverage?.provider_name + ' (claim)'"></td><td class="num" x-text="'−' + RM(bl.bill.panel_share)"></td></tr>
+            <template x-for="y in bl.bill.payments" :key="y.payment_id"><tr><td colspan="2" class="small" x-text="'Paid · ' + y.payment_method + (y.reference_no ? ' · ' + y.reference_no : '') + ' · ' + y.receipt_no"></td><td class="num" x-text="'−' + RM(y.amount)"></td></tr></template>
+            <tr><td colspan="2" class="b">Balance due</td><td class="num b" style="font-size:18px;color:var(--navy)" x-text="RM(bl.bill.outstanding_balance)"></td></tr>
+          </tbody></table>
+          <div class="row between" style="margin-top:10px"><span class="pill" :class="statusPill(bl.bill.bill_status)" x-text="bl.bill.bill_status"></span><button class="btn ghost sm" x-show="bl.bill.payments.length" @click="bPrint()">5.5 Print receipt</button></div>
+        </div></div>
+
+        <div class="card" x-show="bl.bill.bill_status!=='Paid'">
+          <h3 style="margin-bottom:12px">Take payment</h3>
+          <form class="stack" @submit.prevent="bPay()">
+            <div class="seg" role="radiogroup" aria-label="Payment method"><template x-for="m in ['Cash','Card','E-wallet']"><button type="button" role="radio" :aria-checked="bl.pay.payment_method===m" :class="bl.pay.payment_method===m&&'on'" @click="bl.pay.payment_method=m" x-text="m"></button></template></div>
+            <div class="grid g2"><img :src="img(bl.pay.payment_method==='Cash' ? 'terminal' : 'card')" alt="" style="width:100%;height:110px;object-fit:cover;border-radius:10px;grid-column:span 2"></div>
+            <label class="f"><span>Amount (RM)</span><input class="in-t mono" style="font-size:20px" type="number" step="0.01" min="0.01" :max="bl.bill.outstanding_balance" x-model="bl.pay.amount"><div class="hint">Less than the balance is allowed (part payment).</div></label>
+            <label class="f" x-show="bl.pay.payment_method==='Cash'"><span>Cash received (RM)</span><input class="in-t mono" type="number" step="0.01" x-model="bl.pay.tendered"><div class="hint b" x-show="change()>0" x-text="'Change to give: ' + RM(change())"></div></label>
+            <label class="f" x-show="bl.pay.payment_method!=='Cash'"><span x-text="bl.pay.payment_method==='Card' ? 'Card approval code' : 'E-wallet transaction ID'"></span><input class="in-t mono" x-model="bl.pay.reference_no"><div class="hint">Card numbers are never stored.</div></label>
+            <button class="btn teal lg" :disabled="busy" x-text="'Record ' + RM(bl.pay.amount)"></button>
+          </form>
+        </div>
+        <div class="card note good" x-show="bl.bill.bill_status==='Paid'"><h3>Paid in full</h3><p class="small">Receipt saved to the billing records. The patient's queue status is now Done.</p><button class="btn" @click="bPrint()">Print receipt</button></div>
+      </div></template>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 6.0 CLAIMS ======================= -->
+<section x-show="page==='claims'">
+  <div class="kpis">
+    <template x-for="s in ['Draft','Submitted','Approved','Paid','Rejected']"><button class="kpi" style="text-align:left;cursor:pointer;font:inherit" :class="s==='Rejected'&&clCount(s)&&'alert'" @click="cl.status=s"><div class="l" x-text="s"></div><div class="v" x-text="clCount(s)"></div></button></template>
+    <div class="kpi"><div class="l">Bills not yet claimed</div><div class="v" x-text="cl.unclaimed"></div><button class="btn ghost sm" style="margin-top:6px" @click="clGenerate()">Prepare claims</button></div>
+  </div>
+  <div class="card">
+    <div class="card-h"><div class="seg"><template x-for="s in [['all','All'],['Draft','Draft'],['Submitted','Submitted'],['flag','Rejected / overdue'],['Paid','Paid']]"><button :class="cl.status===s[0]&&'on'" @click="cl.status=s[0]" x-text="s[1]"></button></template></div>
+      <button class="btn" @click="clSubmit()" :disabled="!cl.selected.length" x-text="'Submit ' + cl.selected.length + ' selected'"></button></div>
+    <div class="scroll"><table class="tbl"><thead><tr><th></th><th>Claim</th><th>Patient · policy</th><th>Panel / insurer</th><th>Branch</th><th class="num">Claimed</th><th class="num">Approved</th><th>Status</th><th></th></tr></thead><tbody>
+      <template x-for="c in clList().slice(0,150)" :key="c.claim_id"><tr :class="cl.selected.includes(c.claim_id)&&'sel'">
+        <td><input type="checkbox" x-show="c.claim_status==='Draft'" :value="c.claim_id" x-model="cl.selected" :aria-label="'Select ' + c.claim_id"></td>
+        <td><span class="mono" x-text="c.claim_id"></span><div class="tiny muted" x-text="c.bill_id + ' · ' + fmtD(c.bill_date)"></div></td>
+        <td><span x-text="c.full_name"></span><div class="tiny muted mono" x-text="c.policy_no"></div></td><td class="small" x-text="c.provider_name"></td><td class="small" x-text="c.branch_name.replace('SFC ','')"></td>
+        <td class="num" x-text="RM(c.amount_claimed)"></td><td class="num" x-text="c.amount_approved!=null ? RM(c.amount_approved) : '-'"></td>
+        <td><span class="pill" :class="statusPill(c.claim_status)" x-text="c.claim_status"></span> <span class="pill bad" x-show="c.flag==='Overdue'">Overdue</span></td>
+        <td class="right nowrap"><button class="btn ghost sm" x-show="c.claim_status==='Submitted'||c.claim_status==='Approved'" @click="cl.dec={claim_id:c.claim_id, status:c.claim_status==='Approved'?'Paid':'Approved', amount_approved:c.amount_claimed, reason:'', claimed:c.amount_claimed}">Record response</button>
+          <button class="btn ghost sm" x-show="c.claim_status==='Rejected'" @click="clResubmit(c)">Correct &amp; redo</button></td></tr></template>
+      <tr x-show="!clList().length"><td colspan="9" class="empty">No claims in this view.</td></tr></tbody></table></div>
+  </div>
+  <div class="grid g2 claims-bottom" style="margin-top:16px">
+    <div class="card"><h3 style="margin-bottom:10px">Claims by panel and branch</h3><div class="scroll" style="max-height:300px"><table class="tbl"><thead><tr><th>Panel</th><th>Branch</th><th class="num">Claims</th><th class="num">Claimed</th><th class="num">Rejected</th></tr></thead><tbody>
+      <template x-for="s in cl.summary"><tr><td class="small" x-text="s.provider_name"></td><td class="small" x-text="s.branch_name.replace('SFC ','')"></td><td class="num" x-text="s.claims"></td><td class="num" x-text="RM(s.claimed)"></td><td class="num" x-text="s.rejected"></td></tr></template></tbody></table></div></div>
+    <div class="card"><h3 style="margin-bottom:10px">Panels &amp; coverage rules</h3><ul class="list"><template x-for="p in cl.providers" :key="p.provider_id"><li style="cursor:default">
+      <div class="row between"><b x-text="p.provider_name"></b><span class="row gap8"><span class="pill" x-text="'Co-pay ' + Math.round(p.copay_rate*100) + '%'"></span><button class="linkbtn" x-show="user?.role!=='receptionist'" @click="cl.prov={...p}">Update</button></span></div>
+      <div class="small muted" x-text="p.coverage_rules"></div></li></template></ul></div>
+  </div>
+</section>
+
+<!-- ======================= 7.0 REPORTS ======================= -->
+<section x-show="page==='reports'">
+  <div class="card noprint" style="margin-bottom:16px"><form class="row wrap" @submit.prevent="rLoad()" style="align-items:flex-end">
+    <label class="f"><span>Branch</span><select x-model="rp.f.branch_id" :disabled="user?.role!=='head_office'"><option value="ALL">All branches</option><template x-for="b in ref.branches" :key="b.branch_id"><option :value="b.branch_id" x-text="b.branch_name" :selected="b.branch_id===rp.f.branch_id"></option></template></select></label>
+    <label class="f"><span>From</span><input class="in-t" type="date" x-model="rp.f.from"></label><label class="f"><span>To</span><input class="in-t" type="date" x-model="rp.f.to" :max="todayStr()"></label>
+    <label class="f"><span>Service</span><select x-model="rp.f.service"><option value="">All services</option><template x-for="s in SERVICES"><option :value="s[0]" x-text="s[0]"></option></template></select></label>
+    <button class="btn">Apply</button>
+    <div class="seg"><button type="button" @click="rPreset(7)">7 days</button><button type="button" @click="rPreset(30)">30 days</button></div>
+    <span class="grow"></span>
+    <button type="button" class="btn ghost" @click="printPage()">Export PDF</button>
+  </form></div>
+  <template x-if="rp.d"><div>
+    <div class="kpis">
+      <div class="kpi"><div class="l">Revenue collected</div><div class="v" x-text="RM(rp.d.kpi.collected)"></div><div class="s" x-text="'Billed ' + RM(rp.d.kpi.billed)"></div></div>
+      <div class="kpi"><div class="l">Appointments</div><div class="v" x-text="rp.d.kpi.appointments.toLocaleString()"></div><div class="s" x-text="rp.d.kpi.walkins + ' walk-ins · ' + rp.d.kpi.cancelled + ' cancelled'"></div></div>
+      <div class="kpi"><div class="l">Slot utilisation</div><div class="v" x-text="rp.d.kpi.utilisation + '%'"></div><div class="s">booked ÷ doctor slots on duty</div></div>
+      <div class="kpi"><div class="l">Patients seen</div><div class="v" x-text="rp.d.kpi.patients"></div><div class="s" x-text="rp.d.kpi.bills + ' bills'"></div></div>
+      <div class="kpi" :class="rp.d.kpi.low_stock&&'alert'"><div class="l">Low-stock lines</div><div class="v" x-text="rp.d.kpi.low_stock"></div><div class="s" x-text="rp.d.kpi.near_expiry + ' lines expiring ≤ 90 days'"></div></div>
+      <div class="kpi" :class="rp.d.kpi.claims_rejected&&'alert'"><div class="l">Open claims</div><div class="v" x-text="rp.d.kpi.claims_open"></div><div class="s" x-text="rp.d.kpi.claims_rejected + ' rejected'"></div></div>
+    </div>
+    <div class="grid g2">
+      <div class="card" style="grid-column:1/-1"><div class="card-h"><h3>Revenue collected per day</h3><span class="row gap8"><span class="seg"><button :class="rp.view==='chart'&&'on'" @click="rp.view='chart';$nextTick(()=>document.querySelectorAll('[data-chart]').forEach(Chart.bind))">Chart</button><button :class="rp.view==='table'&&'on'" @click="rp.view='table'">Table</button></span><button class="btn ghost sm noprint" @click="rExport('revenue')">Excel</button></span></div>
+        <div data-chart x-show="rp.view==='chart'" x-html="chartLine()"></div>
+        <div x-show="rp.view==='table'" class="scroll" style="max-height:260px"><table class="tbl"><tbody><template x-for="p in rp.d.by_day"><tr><td x-text="fmtD(p.d)"></td><td class="num" x-text="RM(p.v)"></td></tr></template></tbody></table></div></div>
+      <div class="card"><div class="card-h"><h3>Billed by branch</h3><span class="tiny muted">all branches, same period</span></div><div data-chart x-html="chartBranch()"></div></div>
+      <div class="card"><div class="card-h"><h3>Appointments by service</h3><button class="btn ghost sm noprint" @click="rExport('appointments')">Excel</button></div><div data-chart x-html="chartSvc()"></div></div>
+      <div class="card"><div class="card-h"><h3>Doctor workload (visits)</h3><button class="btn ghost sm noprint" @click="rExport('patients')">Patients Excel</button></div><div data-chart x-html="chartWork()"></div></div>
+      <div class="card"><div class="card-h"><h3>Claims by status</h3><button class="btn ghost sm noprint" @click="rExport('claims')">Excel</button></div><div data-chart x-html="chartClaims()"></div></div>
+      <div class="card" style="grid-column:1/-1"><div class="card-h"><h3>Stock watch list</h3><button class="btn ghost sm noprint" @click="rExport('stock')">Excel</button></div>
+        <table class="tbl"><thead><tr><th>Branch</th><th>Medicine</th><th class="num">In stock</th><th class="num">Reorder level</th><th class="num">Expiring ≤ 90 days</th><th>Action</th></tr></thead><tbody>
+          <template x-for="s in rp.d.stock"><tr><td x-text="s.branch_name.replace('SFC ','')"></td><td x-text="s.medication_name"></td><td class="num b" x-text="s.qty"></td><td class="num muted" x-text="s.reorder_level"></td><td class="num" x-text="s.near||'-'"></td>
+            <td><span class="pill bad" x-show="s.qty<=s.reorder_level">Low: reorder or transfer in</span><span class="pill warn" x-show="s.qty>s.reorder_level&&s.near">Use first or transfer out</span></td></tr></template></tbody></table></div>
+    </div>
+  </div></template>
+</section>
+
+<!-- ======================= 8.0 MESSAGES ======================= -->
+<section x-show="page==='messages'">
+  <div class="grid g2" style="align-items:start">
+    <div class="card"><h3 style="margin-bottom:10px">My alerts</h3><ul class="list"><template x-for="a in alerts" :key="a.notification_id"><li style="cursor:default">
+      <div class="row between"><span class="pill" :class="a.notification_type==='Stock Alert'?'warn':a.notification_type==='Rejected Claim'?'bad':'teal'" x-text="a.notification_type"></span><span class="tiny muted" x-text="fmtDT(a.sent_at)"></span></div>
+      <div class="small" style="margin-top:4px" :class="a.delivery_status==='Unread'&&'b'" x-text="a.message"></div></li></template>
+      <li class="empty" x-show="!alerts.length" style="cursor:default">No alerts.</li></ul></div>
+    <div class="card"><h3 style="margin-bottom:10px">SMS sent to patients (via SMS gateway)</h3><div class="scroll"><table class="tbl"><thead><tr><th>Sent</th><th>Patient</th><th>Message</th><th>Delivery</th></tr></thead><tbody>
+      <template x-for="m in ms.sms" :key="m.notification_id"><tr><td class="tiny nowrap" x-text="fmtDT(m.sent_at)"></td><td class="small"><span x-text="m.full_name"></span><div class="tiny muted" x-text="m.phone"></div></td><td class="small"><b x-text="m.notification_type"></b><div class="muted" x-text="m.message"></div></td>
+        <td><span class="pill" :class="m.delivery_status==='Delivered'?'good':'bad'" x-text="m.delivery_status"></span></td></tr></template>
+      <tr x-show="!ms.sms.length"><td colspan="4" class="empty">No messages from this branch yet.</td></tr></tbody></table></div></div>
+  </div>
+</section>
+
+<!-- ======================= 9.0 ADMIN ======================= -->
+<section x-show="page==='admin'">
+  <div class="tabs"><button :class="ad.tab==='users'&&'on'" @click="ad.tab='users'">Staff accounts</button><button :class="ad.tab==='audit'&&'on'" @click="ad.tab='audit';adAudit()">Access &amp; audit report</button></div>
+  <div class="card" x-show="ad.tab==='users'"><div class="card-h"><h3 x-text="ad.users.length + ' accounts'"></h3><button class="btn teal" @click="adNew()">New account</button></div>
+    <div class="scroll"><table class="tbl"><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Branch</th><th>Last login</th><th>Status</th><th></th></tr></thead><tbody>
+      <template x-for="u in ad.users" :key="u.user_id"><tr><td><b x-text="u.full_name"></b><div class="tiny muted" x-text="u.specialisation||''"></div></td><td class="mono small" x-text="u.username"></td><td x-text="ROLE_NAME[u.role]"></td><td class="small" x-text="u.branch_name.replace('SFC ','')"></td>
+        <td class="small" x-text="fmtDT(u.last_login)||'never'"></td><td><span class="pill" :class="u.account_status==='Active'?'good':'bad'" x-text="u.account_status"></span></td>
+        <td class="right nowrap"><button class="btn ghost sm" @click="adEdit(u)">Edit</button> <button class="btn ghost sm" @click="adReset(u)">Reset password</button></td></tr></template></tbody></table></div></div>
+  <div class="card" x-show="ad.tab==='audit'"><div class="card-h"><input class="in-t" style="max-width:340px" type="search" placeholder="Filter by user, action, table or record" x-model="ad.q" @input.debounce.300ms="adAudit()"><span class="small muted">Latest 200 entries. Every view, search and change of a patient record is logged.</span></div>
+    <div class="scroll"><table class="tbl"><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Table</th><th>Record</th></tr></thead><tbody>
+      <template x-for="l in ad.log" :key="l.log_id"><tr><td class="small nowrap" x-text="fmtDT(l.logged_at)"></td><td><span x-text="l.full_name"></span><div class="tiny muted" x-text="l.username + ' · ' + (ROLE_NAME[l.role]||'')"></div></td><td class="small b" x-text="l.action"></td><td class="small mono" x-text="l.table_affected"></td><td class="small mono" x-text="l.record_id"></td></tr></template></tbody></table></div></div>
+</section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ======================= Dialogs ======================= -->
+<div class="modal" x-show="modal" x-cloak @keydown.escape.window="modal=null" @click.self="modal=null"><div class="box" role="dialog" aria-modal="true">
+  <h2 x-text="modal?.title"></h2><p x-text="modal?.text" style="white-space:pre-wrap"></p>
+  <div class="row modal-actions"><button class="btn ghost" @click="modal=null">Close</button><button class="btn" :class="modal?.danger&&'danger'" @click="runModal()" x-text="modal?.ok"></button></div></div></div>
+
+<template x-if="ap.sForm"><div class="modal" @click.self="ap.sForm=null"><div class="box"><h2>Doctor availability</h2><p class="muted" x-text="ap.sForm?.name + ' · ' + fmtD(ap.sForm?.work_date)"></p>
+  <form class="stack" @submit.prevent="aSaveSched()"><div class="seg"><button type="button" :class="ap.sForm?.leave_status==='On Duty'&&'on'" @click="ap.sForm.leave_status='On Duty'">On duty</button><button type="button" :class="ap.sForm?.leave_status==='On Leave'&&'on'" @click="ap.sForm.leave_status='On Leave'">On leave</button></div>
+    <div class="grid g2" x-show="ap.sForm?.leave_status==='On Duty'"><label class="f"><span>Start</span><input class="in-t" type="time" step="1200" x-model="ap.sForm.start_time"></label><label class="f"><span>End</span><input class="in-t" type="time" step="1200" x-model="ap.sForm.end_time"></label></div>
+    <p class="small note warn" x-show="ap.sForm?.leave_status==='On Leave'">Slots on this day will be blocked for booking.</p>
+    <div class="row modal-actions"><button type="button" class="btn ghost" @click="ap.sForm=null">Cancel</button><button class="btn">Save</button></div></form></div></div></template>
+
+<template x-if="ph.recv"><div class="modal" @click.self="ph.recv=null"><div class="box"><h2>Receive stock</h2><form class="grid g2" @submit.prevent="phSubmit('recv')" style="margin-top:12px">
+  <label class="f" style="grid-column:span 2"><span>Medicine</span><select x-model="ph.recv.medication_id" required><option value="">Choose…</option><template x-for="m in ph.stock.medications" :key="m.medication_id"><option :value="m.medication_id" x-text="m.medication_name"></option></template></select></label>
+  <label class="f"><span>Supplier</span><select x-model="ph.recv.supplier_id"><template x-for="s in ph.stock.suppliers"><option :value="s.supplier_id" x-text="s.supplier_name"></option></template></select></label>
+  <label class="f"><span>Batch number</span><input class="in-t mono" x-model="ph.recv.batch_no" required></label>
+  <label class="f"><span>Expiry date</span><input class="in-t" type="date" :min="todayStr(1)" x-model="ph.recv.expiry_date" required></label>
+  <label class="f"><span>Quantity</span><input class="in-t mono" type="number" min="1" x-model="ph.recv.quantity" required></label>
+  <div class="row modal-actions" style="grid-column:1/-1"><button type="button" class="btn ghost" @click="ph.recv=null">Cancel</button><button class="btn teal">Add to stock</button></div></form></div></div></template>
+
+<template x-if="ph.adj"><div class="modal" @click.self="ph.adj=null"><div class="box"><h2>Adjust or dispose stock</h2><form class="stack" @submit.prevent="phSubmit('adj')" style="margin-top:12px">
+  <label class="f"><span>Batch</span><select x-model="ph.adj.batch_id" required><option value="">Choose…</option><template x-for="b in ph.stock.batches" :key="b.batch_id"><option :value="b.batch_id" x-text="b.medication_name + ' · ' + b.batch_no + ' · ' + b.quantity_on_hand + ' left' + (b.flag ? ' · ' + b.flag : '')"></option></template></select></label>
+  <label class="f"><span>Reason</span><select x-model="ph.adj.reason"><option>Damaged</option><option>Disposed (expired)</option><option>Count correction (-)</option><option>Count correction (+)</option></select></label>
+  <label class="f"><span>Quantity</span><input class="in-t mono" type="number" min="1" x-model="ph.adj.quantity" required></label>
+  <div class="row modal-actions"><button type="button" class="btn ghost" @click="ph.adj=null">Cancel</button><button class="btn">Save adjustment</button></div></form></div></div></template>
+
+<template x-if="ph.tr"><div class="modal" @click.self="ph.tr=null"><div class="box"><h2>Request inter-branch transfer</h2><p class="small muted">Send surplus or near-expiry stock to a branch that is running low. Head office approves.</p><form class="stack" @submit.prevent="phSubmit('tr')">
+  <label class="f"><span>Batch to send</span><select x-model="ph.tr.batch_id" required><option value="">Choose…</option><template x-for="b in ph.stock.batches" :key="b.batch_id"><option :value="b.batch_id" x-text="b.medication_name + ' · ' + b.batch_no + ' · ' + b.quantity_on_hand + ' left' + (b.flag ? ' · ' + b.flag : '')"></option></template></select></label>
+  <label class="f"><span>To branch</span><select x-model="ph.tr.to_branch_id" required><option value="">Choose…</option><template x-for="b in ref.branches.filter(b=>b.branch_id!==ph.branch)" :key="b.branch_id"><option :value="b.branch_id" x-text="b.branch_name"></option></template></select></label>
+  <label class="f"><span>Quantity</span><input class="in-t mono" type="number" min="1" x-model="ph.tr.quantity" required></label>
+  <div class="row modal-actions"><button type="button" class="btn ghost" @click="ph.tr=null">Cancel</button><button class="btn">Send request</button></div></form></div></div></template>
+
+<template x-if="cl.dec"><div class="modal" @click.self="cl.dec=null"><div class="box"><h2>Record panel / insurer response</h2><p class="small muted" x-text="cl.dec?.claim_id + ' · claimed ' + RM(cl.dec?.claimed)"></p><form class="stack" @submit.prevent="clDecide()">
+  <div class="seg"><template x-for="s in ['Approved','Paid','Rejected']"><button type="button" :class="cl.dec?.status===s&&'on'" @click="cl.dec.status=s" x-text="s"></button></template></div>
+  <label class="f" x-show="cl.dec?.status!=='Rejected'"><span>Amount approved (RM)</span><input class="in-t mono" type="number" step="0.01" x-model="cl.dec.amount_approved"></label>
+  <label class="f" x-show="cl.dec?.status==='Rejected'"><span>Rejection reason</span><input class="in-t" x-model="cl.dec.reason" placeholder="e.g. policy expired, missing guarantee letter"><div class="hint">Front desk and the branch manager will be alerted.</div></label>
+  <div class="row modal-actions"><button type="button" class="btn ghost" @click="cl.dec=null">Cancel</button><button class="btn">Save</button></div></form></div></div></template>
+
+<template x-if="cl.prov"><div class="modal" @click.self="cl.prov=null"><div class="box"><h2 x-text="cl.prov?.provider_name"></h2><form class="stack" @submit.prevent="clSaveProv()" style="margin-top:12px">
+  <label class="f"><span>Coverage rules</span><textarea x-model="cl.prov.coverage_rules"></textarea></label>
+  <label class="f"><span>Patient co-payment (0 – 1)</span><input class="in-t mono" type="number" step="0.01" min="0" max="1" x-model="cl.prov.copay_rate"><div class="hint">0.10 means the patient pays 10% at the counter.</div></label>
+  <div class="row modal-actions"><button type="button" class="btn ghost" @click="cl.prov=null">Cancel</button><button class="btn">Save</button></div></form></div></div></template>
+
+<template x-if="ad.form"><div class="modal" @click.self="ad.form=null"><div class="box"><h2 x-text="ad.form?.isNew ? 'New staff account' : 'Edit account'"></h2><form class="grid g2" @submit.prevent="adSave()" style="margin-top:12px">
+  <label class="f" style="grid-column:span 2"><span>Full name</span><input class="in-t" x-model="ad.form.full_name" required></label>
+  <label class="f"><span>Role</span><select x-model="ad.form.role"><template x-for="r in ad.roles"><option :value="r" x-text="ROLE_NAME[r]" :selected="r===ad.form?.role"></option></template></select></label>
+  <label class="f"><span>Branch</span><select x-model="ad.form.branch_id"><template x-for="b in ref.branches"><option :value="b.branch_id" x-text="b.branch_name" :selected="b.branch_id===ad.form?.branch_id"></option></template></select></label>
+  <label class="f" x-show="['doctor','dentist'].includes(ad.form?.role)"><span>Specialisation</span><select x-model="ad.form.specialisation"><option value="">-</option><template x-for="s in SERVICES"><option :value="s[0]" x-text="s[0]" :selected="s[0]===ad.form?.specialisation"></option></template></select></label>
+  <template x-if="ad.form?.isNew"><label class="f"><span>Username</span><input class="in-t mono" x-model="ad.form.username" required></label></template>
+  <template x-if="ad.form?.isNew"><label class="f"><span>Initial password</span><input class="in-t" type="password" x-model="ad.form.password" required><div class="hint">8+ characters with letters and numbers.</div></label></template>
+  <template x-if="!ad.form?.isNew"><label class="f"><span>Account status</span><select x-model="ad.form.account_status"><option>Active</option><option>Deactivated</option></select></label></template>
+  <div class="row modal-actions" style="grid-column:1/-1"><button type="button" class="btn ghost" @click="ad.form=null">Cancel</button><button class="btn teal">Save account</button></div></form></div></div></template>
+
+<template x-if="pw"><div class="modal" @click.self="!pw.forced && (pw=null)"><div class="box" role="dialog" aria-modal="true">
+  <h2 x-text="pw.forced ? 'Choose a new password' : 'Change password'"></h2>
+  <p class="muted small" x-show="pw.forced">Your password was reset by the administrator. Choose your own before you continue.</p>
+  <form class="stack" @submit.prevent="savePw()" style="margin-top:12px">
+    <label class="f"><span x-text="pw.forced ? 'Temporary password' : 'Current password'"></span><input class="in-t" type="password" x-model="pw.current" autocomplete="current-password" required></label>
+    <label class="f"><span>New password</span><input class="in-t" type="password" x-model="pw.new" autocomplete="new-password" required><div class="hint">At least 8 characters with letters and numbers.</div></label>
+    <label class="f"><span>Repeat new password</span><input class="in-t" type="password" x-model="pw.confirm" autocomplete="new-password" required></label>
+    <div class="note bad" x-show="pw.err" x-text="pw.err"></div>
+    <div class="row modal-actions"><button type="button" class="btn ghost" x-show="!pw.forced" @click="pw=null">Cancel</button><button type="button" class="btn ghost" x-show="pw.forced" @click="logout()">Sign out</button><button class="btn teal">Save password</button></div>
+  </form></div></div></template>
+
+<div class="toast" :class="toastKind" x-show="toastMsg" x-transition x-cloak role="status" aria-live="polite" x-text="toastMsg"></div>
+<div class="idle" x-show="idleWarn && user" x-cloak role="alert">For patient privacy you will be signed out in 30 seconds. Move the mouse to stay signed in.</div>
+<div id="tip" class="tip" hidden></div>
+<div id="print"></div>
+</body>
+</html>

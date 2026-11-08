@@ -1,0 +1,12 @@
+# runtime data: database, session key, logs and backups are created on first run
+data/
+__pycache__/
+*.pyc
+tests/device_shots/
+.venv/
+venv/
+*.db
+*.db-wal
+*.db-shm
+.DS_Store
+Thumbs.db

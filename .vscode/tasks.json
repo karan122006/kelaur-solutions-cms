@@ -1,0 +1,15 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run SFC Clinic Management System",
+      "type": "shell",
+      "command": "python -m pip install -q -r requirements.txt; python app.py",
+      "windows": { "command": "python -m pip install -q -r requirements.txt ; python app.py" },
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated" },
+      "group": { "kind": "build", "isDefault": true }
+    }
+  ]
+}
