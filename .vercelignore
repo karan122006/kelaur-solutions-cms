@@ -1,0 +1,7 @@
+tests/
+docs/
+data/
+*.bat
+.vscode/
+__pycache__/
+*.pyc

@@ -25,6 +25,12 @@ import threading
 import time
 from logging.handlers import RotatingFileHandler
 
+# On Vercel (serverless) the project folder is read-only: keep the database in /tmp and build the demo data there
+ON_VERCEL = bool(os.environ.get("VERCEL"))
+if ON_VERCEL:
+    os.environ.setdefault("CMS_DB", "/tmp/sfc/cms.db")
+    os.environ.setdefault("CMS_HTTPS", "1")
+
 from flask import Flask, Response, g, jsonify, request, session
 
 from backend import auth
@@ -44,6 +50,9 @@ def secret_key():
     """Kept in data/secret.key so restarting the server does not sign everybody out."""
     if os.environ.get("CMS_SECRET"):
         return os.environ["CMS_SECRET"]
+    if ON_VERCEL:   # same key on every serverless instance, so a sign-in survives cold starts (demo deployment)
+        seed = "sfc-cms|" + os.environ.get("VERCEL_PROJECT_ID", "") + os.environ.get("VERCEL_GIT_REPO_ID", "")
+        return hashlib.sha256(seed.encode()).hexdigest()
     path = os.path.join(DATA, "secret.key")
     if not os.path.exists(path):
         with open(path, "w") as f:
@@ -63,7 +72,8 @@ for m in (p1_patients, p2_appointments, p3_consultation, p4_pharmacy, p5_billing
 # ---------------------------------------------------------------- logging
 log = logging.getLogger("cms")
 log.setLevel(logging.INFO)
-_fh = RotatingFileHandler(os.path.join(DATA, "logs", "cms.log"), maxBytes=2_000_000, backupCount=5, encoding="utf-8")
+_fh = (logging.StreamHandler() if ON_VERCEL else
+       RotatingFileHandler(os.path.join(DATA, "logs", "cms.log"), maxBytes=2_000_000, backupCount=5, encoding="utf-8"))
 _fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
 log.addHandler(_fh)
 
@@ -249,14 +259,19 @@ def server_error(e):
     return jsonify(error="Something went wrong on the server. Please try again; if it keeps happening, tell the administrator."), 500
 
 
-def prepare():
+def prepare(backups=True):
     if not os.path.exists(DB_PATH):
         from backend.seed import build
         build()
         print("Demo data created. Password for every demo account: Sfc@2026")
     from backend.db import migrate
     migrate()
-    backup.start_daily()
+    if backups:
+        backup.start_daily()
+
+
+if ON_VERCEL:          # serverless: no __main__, so prepare the /tmp database when the function starts
+    prepare(backups=False)
 
 
 if __name__ == "__main__":
